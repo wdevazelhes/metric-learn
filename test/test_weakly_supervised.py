@@ -5,13 +5,13 @@ from sklearn.model_selection import cross_val_score
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import make_pipeline
-from sklearn.utils.estimator_checks import is_public_parameter
+from sklearn.utils.estimator_checks import is_public_parameter, check_estimator
 from sklearn.utils.testing import set_random_state, assert_true, \
     assert_allclose_dense_sparse, assert_dict_equal, assert_false
 
 from metric_learn import ITML, LSML, MMC, SDML
 from metric_learn.constraints import ConstrainedDataset
-from sklearn.utils import check_random_state
+from sklearn.utils import check_random_state, check_X_y, check_array
 import numpy as np
 
 num_points = 100
@@ -180,7 +180,7 @@ class _TestWeaklySupervisedBase(unittest.TestCase):
                      ' %s changed' % ', '.join(attrs_changed_by_fit)))
 
 class _TestPairsBase(_TestWeaklySupervisedBase):
-    
+
     def setUp(self):
         self.num_points_in_constraint = 2
         super(_TestPairsBase, self).setUp()
@@ -194,11 +194,13 @@ class _TestQuadrupletsBase(_TestWeaklySupervisedBase):
 
 
 class TestITML(_TestPairsBase):
-    
+
     def setUp(self):
         self.estimator = ITML()
         super(TestITML, self).setUp()
 
+    def test_sklearn_check_estimator(self):
+        check_estimator(SklearnPredictorWrapper())
 
 class TestLSML(_TestQuadrupletsBase):
 
@@ -206,16 +208,79 @@ class TestLSML(_TestQuadrupletsBase):
         self.estimator = LSML()
         super(TestLSML, self).setUp()
 
-
 class TestMMC(_TestPairsBase):
-    
+
     def setUp(self):
         self.estimator = MMC()
         super(TestMMC, self).setUp()
 
-        
 class TestSDML(_TestPairsBase):
     
     def setUp(self):
         self.estimator = SDML()
         super(TestSDML, self).setUp()
+
+
+class SklearnPredictorWrapper(ITML):
+    def make_constrained_dataset(self, X):
+        # for now it fails if accept_sparse=True, to be fixed
+        X = check_array(X, accept_sparse=False)
+
+        # Here is the part where we want to build a ConstrainedDataset from an
+        # array-like dataset. Note that in
+        # sklearn.utils.estimator_checks.check_methods_subset_invariance, we
+        # test that an algorithm gives the same results if applied sample by
+        # sample or on all samples at once, so we may want to build a
+        # ConstrainedDataset where each pair depends only on one sample
+
+        # this solution: link every point to a point that has twice its
+        # coordinates
+        X_bis = np.vstack([X, 2 * X])
+        c = np.hstack([np.arange(X.shape[0])[:, None],
+                       np.arange(X.shape[0])[:, None] + X.shape[0]])
+        # other idea: maybe link every point to a point that has a permutation
+        #  of its feature values ...
+
+        X_constrained = ConstrainedDataset(X_bis, c)
+        return X_constrained
+
+    def fit(self, X, y, random_state=np.random):
+        X_constrained = self.make_constrained_dataset(X)
+        _, y = check_X_y(X, y)
+        # a PairsMetricLearner should learn on a binary y
+        y_bis = y.astype(bool)
+        return super(SklearnPredictorWrapper, self).fit(X_constrained, y_bis)
+
+    def score(self, X, y):
+        X_constrained = self.make_constrained_dataset(X)
+        # a PairsMetricLearner should learn on a binary y
+        y_bis = y.astype(bool)
+        return super(SklearnPredictorWrapper, self).score(X_constrained,
+                                                          y_bis)
+
+    def predict(self, X):
+        # sometimes in testing, due to inheritance of methods like predict,
+        # score etc that call each other, make_constrained_dataset would be
+        # called several times on the input if I remove this condition. There
+        # should be a better fix.
+        if type(X) is not ConstrainedDataset:
+            X_constrained = self.make_constrained_dataset(X)
+        else:
+            X_constrained = X
+        return super(SklearnPredictorWrapper, self).predict(X_constrained)
+
+    def transform(self, X=None):
+        # when transforming, the X_constrained as input of transform should
+        # only contain X, and not more samples, so we will not use
+        # make_constrained_dataset because it creates more samples
+        fake_constrained_dataset = ConstrainedDataset(X, [[0, 0]])
+        return super(SklearnPredictorWrapper, self).transform(
+            fake_constrained_dataset)
+
+    def decision_function(self, X):
+        if type(X) is not ConstrainedDataset:
+            X_constrained = self.make_constrained_dataset(X)
+        else:
+            X_constrained = X
+        return super(SklearnPredictorWrapper, self).decision_function(
+            X_constrained)
