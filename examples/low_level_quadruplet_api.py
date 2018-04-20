@@ -21,9 +21,8 @@ idx_train, idx_test, y_train, y_test = train_test_split(
 # Model fitting
 #
 
-quadruplets_train = sample_quadruplets(n_samples=1000, idx_train, y_train,
+quadruplets_train = sample_quadruplets(idx_train, y_train, n_samples=1000,
                                        random_state=RNG_SEED)
-
 metric_model = LSML(data_fetcher=iris.data).fit_quadruplets(quadruplets_train)
 
 #
