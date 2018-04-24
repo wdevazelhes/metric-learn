@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from sklearn.datasets import load_iris
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
-from sklearn.decomposition import PCA
+from sklearn.decomposition  import PCA
 from metric_learn.sampling import sample_quadruplets
 from metric_learn.sampling import sample_pairs
 from metric_learn import LSML
