@@ -4,6 +4,8 @@ from supervised data labels.
 """
 import numpy as np
 import warnings
+
+import os
 from six.moves import xrange
 from scipy.sparse import coo_matrix
 
