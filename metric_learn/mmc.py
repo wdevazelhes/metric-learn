@@ -22,13 +22,14 @@ from six.moves import xrange
 from sklearn.metrics import pairwise_distances
 from sklearn.utils.validation import check_array, check_X_y
 
-from .base_metric import BaseMetricLearner
+from .base_metric import BaseMetricLearner, ExplicitMetricMixin, \
+  MetricTuplesClassifier
 from .constraints import Constraints
 from ._util import vector_norm
 
 
 
-class BaseMMC(BaseMetricLearner):
+class BaseMMC(object):
   """Mahalanobis Metric for Clustering (MMC)"""
   def __init__(self, max_iter=100, max_proj=10000, convergence_threshold=1e-3,
                A0=None, diagonal=False, diagonal_c=1.0, verbose=False):
@@ -58,7 +59,8 @@ class BaseMMC(BaseMetricLearner):
     self.diagonal_c = diagonal_c
     self.verbose = verbose
 
-  def fit(self, X, constraints):
+
+  def _fit(self, pairs, y):
     """Learn the MMC model.
 
     Parameters
@@ -69,11 +71,11 @@ class BaseMMC(BaseMetricLearner):
         (a,b,c,d) indices into X, with (a,b) specifying similar and (c,d)
         dissimilar pairs
     """
-    constraints = self._process_inputs(X, constraints)
+    pairs, y = self._process_pairs(pairs, y)
     if self.diagonal:
-      return self._fit_diag(X, constraints)
+      return self._fit_diag(pairs, y)
     else:
-      return self._fit_full(X, constraints)
+      return self._fit_full(pairs, y)
 
   def _process_inputs(self, X, constraints):
 
@@ -102,7 +104,38 @@ class BaseMMC(BaseMetricLearner):
 
     return a,b,c,d
 
-  def _fit_full(self, X, constraints):
+  def _process_pairs(self, pairs, y):
+
+    self.pairs_ = pairs = check_array(pairs, accept_sparse=False,
+                                      ensure_2d=False)
+
+    # check to make sure that no two constrained vectors are identical
+    no_ident = vector_norm(pairs[y][:, 0] - pairs[y][:, 1]) > 1e-9
+    pairs, y = pairs[no_ident], y[no_ident]
+    no_ident = vector_norm(pairs[~y][:, 0] - pairs[~y][:, 1]) > 1e-9
+    pairs, y = pairs[no_ident], y[no_ident]
+    if sum(y) == 0:
+      raise ValueError('No non-trivial similarity constraints given for MMC.')
+    if sum(~y) == 0:
+      raise ValueError('No non-trivial dissimilarity constraints given for MMC.')
+
+    # init metric
+    if self.A0 is None:
+      self.A_ = np.identity(pairs.shape[2])
+      if not self.diagonal:
+        # Don't know why division by 10... it's in the original code
+        # and seems to affect the overall scale of the learned metric.
+        self.A_ /= 10.0
+    else:
+      self.A_ = check_array(self.A0)
+
+    #indices: new indices of samples to take of pairs
+    # y: labels of the array of pairs pairs[indices]
+    # todo: maybe raise a warning if some points are removed due to
+    # identical points ? And also if we return a copy of pairs ?
+    return pairs, y
+
+  def _fit_full(self, pairs, y):
     """Learn full metric using MMC.
 
     Parameters
@@ -113,17 +146,16 @@ class BaseMMC(BaseMetricLearner):
         (a,b,c,d) indices into X, with (a,b) specifying similar and (c,d)
         dissimilar pairs
     """
-    a,b,c,d = constraints
-    num_pos = len(a)
-    num_neg = len(c)
-    num_samples, num_dim = X.shape
+    num_pos = sum(y)
+    num_neg = sum(~y)
+    num_dim = pairs.shape[2]
 
     error1 = error2 = 1e10
     eps = 0.01        # error-bound of iterative projection on C1 and C2
     A = self.A_
 
     # Create weight vector from similar samples
-    pos_diff = X[a] - X[b]
+    pos_diff = pairs[y][:, 0] - pairs[y][:, 1]
     w = np.einsum('ij,ik->jk', pos_diff, pos_diff).ravel()
     # `w` is the sum of all outer products of the rows in `pos_diff`.
     # The above `einsum` is equivalent to the much more inefficient:
@@ -379,8 +411,44 @@ class BaseMMC(BaseMetricLearner):
       w, V = np.linalg.eigh(self.A_)
       return V.T * np.sqrt(np.maximum(0, w[:,None]))
 
+class MMCPairsClassifier(MetricTuplesClassifier, ExplicitMetricMixin, BaseMMC):
 
-class MMCTransformer(MMC):
+  def __init__(self, max_iter=100, max_proj=10000, convergence_threshold=1e-3,
+               A0=None, diagonal=False, diagonal_c=1.0, verbose=False,
+               preprocessors=None):
+    """Initialize MMC.
+    Parameters
+    ----------
+    max_iter : int, optional
+    max_proj : int, optional
+    convergence_threshold : float, optional
+    A0 : (d x d) matrix, optional
+        initial metric, defaults to identity
+        only the main diagonal is taken if `diagonal == True`
+    diagonal : bool, optional
+        if True, a diagonal metric will be learned,
+        i.e., a simple scaling of dimensions
+    diagonal_c : float, optional
+        weight of the dissimilarity constraint for diagonal
+        metric learning
+    verbose : bool, optional
+        if True, prints information while learning
+    """
+    super(MMCPairsClassifier, self).__init__(max_iter=max_iter,
+                                             max_proj=max_proj,
+                                             convergence_threshold=convergence_threshold,
+                                             A0=A0,
+                                             diagonal=diagonal,
+                                             diagonal_c=diagonal_c,
+                                             verbose=verbose,
+                                             preprocessors=preprocessors)
+
+
+  def fit(self, pairs, y_pairs):
+
+    return self.
+
+class MMCTransformer(BaseMMC):
   """Mahalanobis Metric for Clustering (MMC)"""
   def __init__(self, max_iter=100, max_proj=10000, convergence_threshold=1e-6,
                num_labeled=np.inf, num_constraints=None,
@@ -408,7 +476,8 @@ class MMCTransformer(MMC):
     verbose : bool, optional
         if True, prints information while learning
     """
-    MMC.__init__(self, max_iter=max_iter, max_proj=max_proj,
+    super(MMCTransformer, self).__init__(max_iter=max_iter,
+                                     max_proj=max_proj,
                  convergence_threshold=convergence_threshold,
                  A0=A0, diagonal=diagonal, diagonal_c=diagonal_c,
                  verbose=verbose)
