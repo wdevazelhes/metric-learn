@@ -28,7 +28,7 @@ from ._util import vector_norm
 
 
 
-class MMC(BaseMetricLearner):
+class BaseMMC(BaseMetricLearner):
   """Mahalanobis Metric for Clustering (MMC)"""
   def __init__(self, max_iter=100, max_proj=10000, convergence_threshold=1e-3,
                A0=None, diagonal=False, diagonal_c=1.0, verbose=False):
@@ -380,7 +380,7 @@ class MMC(BaseMetricLearner):
       return V.T * np.sqrt(np.maximum(0, w[:,None]))
 
 
-class MMC_Supervised(MMC):
+class MMCTransformer(MMC):
   """Mahalanobis Metric for Clustering (MMC)"""
   def __init__(self, max_iter=100, max_proj=10000, convergence_threshold=1e-6,
                num_labeled=np.inf, num_constraints=None,
@@ -438,3 +438,9 @@ class MMC_Supervised(MMC):
     pos_neg = c.positive_negative_pairs(num_constraints,
                                         random_state=random_state)
     return MMC.fit(self, X, pos_neg)
+
+  def transform(self, X):
+    return self.embed(X)
+
+# todo: make a MMCClassifier that has a knn inside and can be used directly
+# for predictions
