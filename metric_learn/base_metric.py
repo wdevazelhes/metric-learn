@@ -45,14 +45,53 @@ class BaseMetricLearner(six.with_metaclass(ABCMeta)):
         metric space learned by the model.
     """
 
+  def metric(self):
+    """Computes the Mahalanobis matrix from the transformation matrix.
+
+    .. math:: M = L^{\\top} L
+
+    Returns
+    -------
+    M : (d x d) matrix
+    """
+    L = self.transformer()
+    return L.T.dot(L)
+
+  def transformer(self):
+    """Computes the transformation matrix from the Mahalanobis matrix.
+
+    L = cholesky(M).T
+
+    Returns
+    -------
+    L : upper triangular (d x d) matrix
+    """
+    return cholesky(self.metric()).T
+
+  def transform(self, X=None):
+    """Applies the metric transformation.
+
+    Parameters
+    ----------
+    X : (n x d) matrix, optional
+        Data to transform. If not supplied, the training data will be used.
+
+    Returns
+    -------
+    transformed : (n x d) matrix
+        Input data transformed to the metric space by :math:`XL^{\\top}`
+    """
+    if X is None:
+      X = self.X_
+    else:
+      X = check_array(X, accept_sparse=True)
+    L = self.transformer()
+    return X.dot(L.T)
 
 
-class ExplicitMetricMixin(BaseMetricLearner):
+class ExplicitMetricMixin(six.with_metaclass(ABCMeta, BaseMetricLearner)):
 
-  def __init__(self, *args, **kwargs):
-    super(ExplicitMetricMixin, self).__init__(*args, **kwargs)
-    self.metric = None
-
+  @abstractmethod
   def embed(self, X, kind=None):
     """Embed datapoints in the metric space learned by the model.
 
@@ -74,10 +113,25 @@ class ExplicitMetricMixin(BaseMetricLearner):
     """
 
 
-  def score_pairs(self, pairs):
+  def score_pairs(self, pairs, kind=None):
     return np.sum(self.embed(pairs[:, 0], kind=0) *
                   self.embed(pairs[:, 1], kind=1),
                   axis=1)
+
+class MahalanobisMetricMixin(ExplicitMetricMixin):
+
+  def __init__(self, *args, **kwargs):
+    super(ExplicitMetricMixin, self).__init__(*args, **kwargs)
+    self.metric = None
+
+  @property
+  def metric_(self):
+    return self._metric
+
+  def embed(self, X, kind=None):
+    L = cholesky(self._metric).T
+    return X.dot(L.T)
+
 
 
 class BaseMetricClassifier(sklearn.base.BaseEstimator,

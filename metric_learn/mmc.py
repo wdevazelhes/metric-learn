@@ -19,20 +19,23 @@ Adapted from Matlab code at http://www.cs.cmu.edu/%7Eepxing/papers/Old_papers/co
 from __future__ import print_function, absolute_import, division
 import numpy as np
 from six.moves import xrange
+from sklearn.base import TransformerMixin, MetaEstimatorMixin
 from sklearn.metrics import pairwise_distances
 from sklearn.utils.validation import check_array, check_X_y
 
 from .base_metric import BaseMetricLearner, ExplicitMetricMixin, \
-  MetricTuplesClassifier
-from .constraints import Constraints
+  MetricTuplesClassifier, MahalanobisMetricMixin
+from .constraints import Constraints, wrap_pairs
 from ._util import vector_norm
 
 
 
-class BaseMMC(object):
+class MMC(MetricTuplesClassifier, MahalanobisMetricMixin):
   """Mahalanobis Metric for Clustering (MMC)"""
-  def __init__(self, max_iter=100, max_proj=10000, convergence_threshold=1e-3,
-               A0=None, diagonal=False, diagonal_c=1.0, verbose=False):
+  def __init__(self, *args, max_iter=100, max_proj=10000,
+               convergence_threshold=1e-3,
+               A0=None, diagonal=False, diagonal_c=1.0, verbose=False,
+               **kwargs):
     """Initialize MMC.
     Parameters
     ----------
@@ -60,7 +63,7 @@ class BaseMMC(object):
     self.verbose = verbose
 
 
-  def _fit(self, pairs, y):
+  def fit(self, pairs, y):
     """Learn the MMC model.
 
     Parameters
@@ -94,45 +97,49 @@ class BaseMMC(object):
 
     # init metric
     if self.A0 is None:
-      self.A_ = np.identity(X.shape[1])
+      self._metric = np.identity(X.shape[1])
       if not self.diagonal:
         # Don't know why division by 10... it's in the original code
         # and seems to affect the overall scale of the learned metric.
-        self.A_ /= 10.0
+        self._metric /= 10.0
     else:
-      self.A_ = check_array(self.A0)
+      self._metric = check_array(self.A0)
 
     return a,b,c,d
 
   def _process_pairs(self, pairs, y):
-
+    y = y.astype(bool).ravel() # todo: make cleaner implem
     self.pairs_ = pairs = check_array(pairs, accept_sparse=False,
-                                      ensure_2d=False)
+                                      ensure_2d=False, allow_nd=True)
 
     # check to make sure that no two constrained vectors are identical
-    no_ident = vector_norm(pairs[y][:, 0] - pairs[y][:, 1]) > 1e-9
-    pairs, y = pairs[no_ident], y[no_ident]
-    no_ident = vector_norm(pairs[~y][:, 0] - pairs[~y][:, 1]) > 1e-9
-    pairs, y = pairs[no_ident], y[no_ident]
-    if sum(y) == 0:
+    pos_pairs, neg_pairs = pairs[y], pairs[~y]
+    pos_no_ident = vector_norm(pos_pairs[:, 0, :] - pos_pairs[:, 1, :]) > 1e-9
+    pos_pairs = pos_pairs[pos_no_ident]
+    neg_no_ident = vector_norm(neg_pairs[:, 0, :] - neg_pairs[:, 1, :]) > 1e-9
+    neg_pairs = neg_pairs[neg_no_ident]
+    if len(pos_pairs) == 0:
       raise ValueError('No non-trivial similarity constraints given for MMC.')
-    if sum(~y) == 0:
+    if len(neg_pairs) == 0:
       raise ValueError('No non-trivial dissimilarity constraints given for MMC.')
 
     # init metric
     if self.A0 is None:
-      self.A_ = np.identity(pairs.shape[2])
+      self._metric = np.identity(pairs.shape[2])
       if not self.diagonal:
         # Don't know why division by 10... it's in the original code
         # and seems to affect the overall scale of the learned metric.
-        self.A_ /= 10.0
+        self._metric /= 10.0
     else:
-      self.A_ = check_array(self.A0)
+      self._metric = check_array(self.A0)
 
     #indices: new indices of samples to take of pairs
     # y: labels of the array of pairs pairs[indices]
     # todo: maybe raise a warning if some points are removed due to
     # identical points ? And also if we return a copy of pairs ?
+    pairs = np.vstack([pos_pairs, neg_pairs])
+    y = np.hstack([np.ones(len(pos_pairs)), np.zeros(len(neg_pairs))])
+    y = y.astype(bool)
     return pairs, y
 
   def _fit_full(self, pairs, y):
@@ -150,12 +157,12 @@ class BaseMMC(object):
 
     error1 = error2 = 1e10
     eps = 0.01        # error-bound of iterative projection on C1 and C2
-    A = self.A_
+    A = self._metric
 
     pos_pairs, neg_pairs = pairs[y], pairs[~y]
 
     # Create weight vector from similar samples
-    pos_diff = pos_pairs[:, 0] - pos_pairs[:, 1]
+    pos_diff = pos_pairs[:, 0, :] - pos_pairs[:, 1, :]
     w = np.einsum('ij,ik->jk', pos_diff, pos_diff).ravel()
     # `w` is the sum of all outer products of the rows in `pos_diff`.
     # The above `einsum` is equivalent to the much more inefficient:
@@ -253,7 +260,7 @@ class BaseMMC(object):
       self.converged_ = True
       if self.verbose:
         print('mmc converged at iter %d, conv = %f' % (cycle, delta))
-    self.A_[:] = A_old
+    self._metric[:] = A_old
     self.n_iter_ = cycle
     return self
 
@@ -269,13 +276,13 @@ class BaseMMC(object):
     """
     num_dim = pairs.shape[2]
     pos_pairs, neg_pairs = pairs[y], pairs[~y]
-    s_sum = np.sum((pos_pairs[:, 0] - pos_pairs[:, 1]) ** 2, axis=0)
+    s_sum = np.sum((pos_pairs[:, 0, :] - pos_pairs[:, 1, :]) ** 2, axis=0)
 
     it = 0
     error = 1.0
     eps = 1e-6
     reduction = 2.0
-    w = np.diag(self.A_).copy()
+    w = np.diag(self._metric).copy()
 
     while error > self.convergence_threshold and it < self.max_iter:
 
@@ -312,7 +319,7 @@ class BaseMMC(object):
         print('mmc iter: %d, conv = %f' % (it, error))
       it += 1
 
-    self.A_ = np.diag(w)
+    self._metric = np.diag(w)
     return self
 
   def _fD(self, neg_pairs, A):
@@ -321,7 +328,7 @@ class BaseMMC(object):
     f = f(\sum_{ij \in D} distance(x_i, x_j))
     i.e. distance can be L1:  \sqrt{(x_i-x_j)A(x_i-x_j)'}
     """
-    diff = neg_pairs[:, 0] - neg_pairs[:, 1]
+    diff = neg_pairs[:, 0, :] - neg_pairs[:, 1, :]
     return np.log(np.sum(np.sqrt(np.sum(np.dot(diff, A) * diff, axis=1))) + 1e-6)
 
   def _fD1(self, neg_pairs, A):
@@ -337,7 +344,7 @@ class BaseMMC(object):
                 * 0.5*(\sum_{ij \in D} (1/sqrt{tr(d_ij'*d_ij*A)})*(d_ij'*d_ij))
     """
     dim = neg_pairs.shape[2]
-    diff = neg_pairs[:, 0] - neg_pairs[:, 1]
+    diff = neg_pairs[:, 0, :] - neg_pairs[:, 1, :]
     # outer products of all rows in `diff`
     M = np.einsum('ij,ik->ijk', diff, diff)
     # faster version of: dist = np.sqrt(np.sum(M * A[None,:,:], axis=(1,2)))
@@ -357,7 +364,7 @@ class BaseMMC(object):
     so, d(d_ij*A*d_ij')/dA = d_ij'*d_ij
     """
     dim = pos_pairs.shape[2]
-    diff = pos_pairs[:, 0] - pos_pairs[:, 1]
+    diff = pos_pairs[:, 0, :] - pos_pairs[:, 1, :]
     return np.einsum('ij,ik->jk', diff, diff)  # sum of outer products of all rows in `diff`
 
   def _grad_projection(self, grad1, grad2):
@@ -367,8 +374,8 @@ class BaseMMC(object):
     return gtemp
 
   def _D_objective(self, neg_pairs, w):
-    return np.log(np.sum(np.sqrt(np.sum(((neg_pairs[:, 0] -
-                                          neg_pairs[:, 1]) ** 2) *
+    return np.log(np.sum(np.sqrt(np.sum(((neg_pairs[:, 0, :] -
+                                          neg_pairs[:, 1, :]) ** 2) *
                                         w[None,:], axis=1) + 1e-6)))
 
   def _D_constraint(self, neg_pairs, w):
@@ -376,7 +383,7 @@ class BaseMMC(object):
     a dissimilarity constraint function gF(sum_ij distance(d_ij A d_ij))
     where A is a diagonal matrix (in the form of a column vector 'w').
     """
-    diff = neg_pairs[:, 0] - neg_pairs[:, 1]
+    diff = neg_pairs[:, 0, :] - neg_pairs[:, 1, :]
     diff_sq = diff * diff
     dist = np.sqrt(diff_sq.dot(w))
     sum_deri1 = np.einsum('ij,i', diff_sq, 0.5 / np.maximum(dist, 1e-6))
@@ -393,7 +400,7 @@ class BaseMMC(object):
     )
 
   def metric(self):
-    return self.A_
+    return self._metric
 
   def transformer(self):
     """Computes the transformation matrix from the Mahalanobis matrix.
@@ -408,48 +415,23 @@ class BaseMMC(object):
     L : (d x d) matrix
     """
     if self.diagonal:
-      return np.sqrt(self.A_)
+      return np.sqrt(self._metric)
     else:
-      w, V = np.linalg.eigh(self.A_)
+      w, V = np.linalg.eigh(self._metric)
       return V.T * np.sqrt(np.maximum(0, w[:,None]))
 
-class MMCPairsClassifier(MetricTuplesClassifier, ExplicitMetricMixin, BaseMMC):
+  def _transformation(self):
+    if self.diagonal:
+      return np.sqrt(self.metric_)
+    else:
+      w, V = np.linalg.eigh(self.metric_)
+      return V.T * np.sqrt(np.maximum(0, w[:, None]))
 
-  def __init__(self, max_iter=100, max_proj=10000, convergence_threshold=1e-3,
-               A0=None, diagonal=False, diagonal_c=1.0, verbose=False,
-               preprocessors=None):
-    """Initialize MMC.
-    Parameters
-    ----------
-    max_iter : int, optional
-    max_proj : int, optional
-    convergence_threshold : float, optional
-    A0 : (d x d) matrix, optional
-        initial metric, defaults to identity
-        only the main diagonal is taken if `diagonal == True`
-    diagonal : bool, optional
-        if True, a diagonal metric will be learned,
-        i.e., a simple scaling of dimensions
-    diagonal_c : float, optional
-        weight of the dissimilarity constraint for diagonal
-        metric learning
-    verbose : bool, optional
-        if True, prints information while learning
-    """
-    super(MMCPairsClassifier, self).__init__(max_iter=max_iter,
-                                             max_proj=max_proj,
-                                             convergence_threshold=convergence_threshold,
-                                             A0=A0,
-                                             diagonal=diagonal,
-                                             diagonal_c=diagonal_c,
-                                             verbose=verbose,
-                                             preprocessors=preprocessors)
+  def embed(self, X, kind=None):
+    return X.dot(self._transformation().T)
 
 
-  def fit(self, pairs, y_pairs):
-    return self._fit(pairs, y_pairs)
-
-class MMCTransformer(BaseMMC):
+class MMCTransformer(TransformerMixin, MetaEstimatorMixin):
   """Mahalanobis Metric for Clustering (MMC)"""
   def __init__(self, max_iter=100, max_proj=10000, convergence_threshold=1e-6,
                num_labeled=np.inf, num_constraints=None,
@@ -477,11 +459,14 @@ class MMCTransformer(BaseMMC):
     verbose : bool, optional
         if True, prints information while learning
     """
-    super(MMCTransformer, self).__init__(max_iter=max_iter,
-                                     max_proj=max_proj,
-                 convergence_threshold=convergence_threshold,
-                 A0=A0, diagonal=diagonal, diagonal_c=diagonal_c,
-                 verbose=verbose)
+    self.max_iter = max_iter
+    self.max_proj = max_proj
+    self.convergence_threshold = convergence_threshold
+    self.A0 = A0
+    self.diagonal = diagonal
+    self.diagonal_c = diagonal_c
+    self.verbose = verbose
+
     self.num_labeled = num_labeled
     self.num_constraints = num_constraints
 
@@ -497,6 +482,13 @@ class MMCTransformer(BaseMMC):
     random_state : numpy.random.RandomState, optional
         If provided, controls random number generation.
     """
+    self.mmc = MMC(max_iter = self.max_iter,
+                   max_proj = self.max_proj,
+                   convergence_threshold = self.convergence_threshold,
+                   A0 = self.A0,
+                   diagonal = self.diagonal,
+                   diagonal_c = self.diagonal_c,
+                   verbose = self.verbose)
     X, y = check_X_y(X, y)
     num_constraints = self.num_constraints
     if num_constraints is None:
@@ -507,16 +499,12 @@ class MMCTransformer(BaseMMC):
                                   random_state=random_state)
     pos_neg = c.positive_negative_pairs(num_constraints,
                                         random_state=random_state)
-    a = np.array(pos_neg[0])
-    b = np.array(pos_neg[1])
-    c = np.array(pos_neg[2])
-    d = np.array(pos_neg[3])
-    constraints = np.vstack((np.column_stack((a, b)), np.column_stack((c, d))))
-    y = np.vstack([np.zeros((len(a), 1)), np.ones((len(c), 1))])
-    return self._fit(self, X[constraints], y)
+    pairs, y = wrap_pairs(X, pos_neg)
+    self.mmc.fit(pairs, y)
+    return self
 
   def transform(self, X):
-    return self.embed(X)
+    return self.mmc.embed(X)
 
 # todo: make a MMCClassifier that has a knn inside and can be used directly
 # for predictions

@@ -1,13 +1,14 @@
 import unittest
 import numpy as np
+from metric_learn.constraints import wrap_pairs
 from six.moves import xrange
 from sklearn.metrics import pairwise_distances
 from sklearn.datasets import load_iris
 from numpy.testing import assert_array_almost_equal
 
 from metric_learn import (
-    LMNN, NCA, LFDA, Covariance, MLKR, MMC,
-    LSML_Supervised, ITML_Supervised, SDML_Supervised, RCA_Supervised, MMC_Supervised)
+  LMNN, NCA, LFDA, Covariance, MLKR, MMC,
+  LSML_Supervised, ITML_Supervised, SDML_Supervised, RCA_Supervised, MMCTransformer)
 # Import this specially for testing.
 from metric_learn.lmnn import python_LMNN
 
@@ -160,7 +161,7 @@ class TestMMC(MetricTestCase):
 
     # Full metric
     mmc = MMC(convergence_threshold=0.01)
-    mmc.fit(self.iris_points, [a,b,c,d])
+    mmc.fit(*wrap_pairs(self.iris_points, [a,b,c,d]))
     expected = [[+0.00046504, +0.00083371, -0.00111959, -0.00165265],
                 [+0.00083371, +0.00149466, -0.00200719, -0.00296284],
                 [-0.00111959, -0.00200719, +0.00269546, +0.00397881],
@@ -169,20 +170,20 @@ class TestMMC(MetricTestCase):
 
     # Diagonal metric
     mmc = MMC(diagonal=True)
-    mmc.fit(self.iris_points, [a,b,c,d])
+    mmc.fit(*wrap_pairs(self.iris_points, [a,b,c,d]))
     expected = [0, 0, 1.21045968, 1.22552608]
     assert_array_almost_equal(np.diag(expected), mmc.metric(), decimal=6)
     
     # Supervised Full
-    mmc = MMC_Supervised()
+    mmc = MMCTransformer()
     mmc.fit(self.iris_points, self.iris_labels)
-    csep = class_separation(mmc.transform(), self.iris_labels)
+    csep = class_separation(mmc.transform(self.iris_points), self.iris_labels)
     self.assertLess(csep, 0.15)
     
     # Supervised Diagonal
-    mmc = MMC_Supervised(diagonal=True)
+    mmc = MMCTransformer(diagonal=True)
     mmc.fit(self.iris_points, self.iris_labels)
-    csep = class_separation(mmc.transform(), self.iris_labels)
+    csep = class_separation(mmc.transform(self.iris_points), self.iris_labels)
     self.assertLess(csep, 0.2)
 
 

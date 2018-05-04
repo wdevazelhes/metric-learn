@@ -4,7 +4,7 @@ from sklearn.utils.estimator_checks import check_estimator
 
 from metric_learn import (
     LMNN, NCA, LFDA, Covariance, MLKR,
-    LSML_Supervised, ITML_Supervised, SDML_Supervised, RCA_Supervised, MMC_Supervised)
+    LSML_Supervised, ITML_Supervised, SDML_Supervised, RCA_Supervised, MMCTransformer)
 
 
 # Wrap the _Supervised methods with a deterministic wrapper for testing.
@@ -22,7 +22,7 @@ class dITML(deterministic_mixin, ITML_Supervised):
   pass
 
 
-class dMMC(deterministic_mixin, MMC_Supervised):
+class dMMC(deterministic_mixin, MMCTransformer):
   pass
 
 
