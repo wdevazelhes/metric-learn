@@ -146,16 +146,16 @@ class BaseMMC(object):
         (a,b,c,d) indices into X, with (a,b) specifying similar and (c,d)
         dissimilar pairs
     """
-    num_pos = sum(y)
-    num_neg = sum(~y)
     num_dim = pairs.shape[2]
 
     error1 = error2 = 1e10
     eps = 0.01        # error-bound of iterative projection on C1 and C2
     A = self.A_
 
+    pos_pairs, neg_pairs = pairs[y], pairs[~y]
+
     # Create weight vector from similar samples
-    pos_diff = pairs[y][:, 0] - pairs[y][:, 1]
+    pos_diff = pos_pairs[:, 0] - pos_pairs[:, 1]
     w = np.einsum('ij,ik->jk', pos_diff, pos_diff).ravel()
     # `w` is the sum of all outer products of the rows in `pos_diff`.
     # The above `einsum` is equivalent to the much more inefficient:
@@ -172,9 +172,10 @@ class BaseMMC(object):
 
     cycle = 1
     alpha = 0.1  # initial step size along gradient
-
-    grad1 = self._fS1(X, a, b, A)            # gradient of similarity constraint function
-    grad2 = self._fD1(X, c, d, A)            # gradient of dissimilarity constraint function
+    grad1 = self._fS1(pos_pairs, A)            # gradient of similarity
+    # constraint function
+    grad2 = self._fD1(neg_pairs, A)            # gradient of dissimilarity
+    # constraint function
     M = self._grad_projection(grad1, grad2)  # gradient of fD1 orthogonal to fS1
 
     A_old = A.copy()
@@ -215,8 +216,8 @@ class BaseMMC(object):
       # max: g(A) >= 1
       # here we suppose g(A) = fD(A) = \sum_{I,J \in D} sqrt(d_ij' A d_ij)
 
-      obj_previous = self._fD(X, c, d, A_old)  # g(A_old)
-      obj = self._fD(X, c, d, A)               # g(A)
+      obj_previous = self._fD(neg_pairs, A_old)  # g(A_old)
+      obj = self._fD(neg_pairs, A)               # g(A)
 
       if satisfy and (obj > obj_previous or cycle == 0):
 
@@ -225,8 +226,8 @@ class BaseMMC(object):
         # and update from the current A.
         alpha *= 1.05
         A_old[:] = A
-        grad2 = self._fS1(X, a, b, A)
-        grad1 = self._fD1(X, c, d, A)
+        grad2 = self._fS1(pos_pairs, A)
+        grad1 = self._fD1(neg_pairs, A)
         M = self._grad_projection(grad1, grad2)
         A += alpha * M
 
@@ -256,7 +257,7 @@ class BaseMMC(object):
     self.n_iter_ = cycle
     return self
 
-  def _fit_diag(self, X, constraints):
+  def _fit_diag(self, pairs, y):
     """Learn diagonal metric using MMC.
     Parameters
     ----------
@@ -266,12 +267,9 @@ class BaseMMC(object):
         (a,b,c,d) indices into X, with (a,b) specifying similar and (c,d)
         dissimilar pairs
     """
-    a,b,c,d = constraints
-    num_pos = len(a)
-    num_neg = len(c)
-    num_samples, num_dim = X.shape
-
-    s_sum = np.sum((X[a] - X[b]) ** 2, axis=0)
+    num_dim = pairs.shape[2]
+    pos_pairs, neg_pairs = pairs[y], pairs[~y]
+    s_sum = np.sum((pos_pairs[:, 0] - pos_pairs[:, 1]) ** 2, axis=0)
 
     it = 0
     error = 1.0
@@ -281,20 +279,21 @@ class BaseMMC(object):
 
     while error > self.convergence_threshold and it < self.max_iter:
 
-      fD0, fD_1st_d, fD_2nd_d = self._D_constraint(X, c, d, w)
+      fD0, fD_1st_d, fD_2nd_d = self._D_constraint(neg_pairs, w)
       obj_initial = np.dot(s_sum, w) + self.diagonal_c * fD0
       fS_1st_d = s_sum  # first derivative of the similarity constraints
 
       gradient = fS_1st_d - self.diagonal_c * fD_1st_d               # gradient of the objective
       hessian = -self.diagonal_c * fD_2nd_d + eps * np.eye(num_dim)  # Hessian of the objective
-      step = np.dot(np.linalg.inv(hessian), gradient);
+      step = np.dot(np.linalg.inv(hessian), gradient)
 
       # Newton-Rapshon update
       # search over optimal lambda
       lambd = 1  # initial step-size
       w_tmp = np.maximum(0, w - lambd * step)
 
-      obj = np.dot(s_sum, w_tmp) + self.diagonal_c * self._D_objective(X, c, d, w_tmp)
+      obj = np.dot(s_sum, w_tmp) + self.diagonal_c * \
+            self._D_objective(neg_pairs, w_tmp)
       obj_previous = obj * 1.1  # just to get the while-loop started
 
       inner_it = 0
@@ -303,7 +302,8 @@ class BaseMMC(object):
         w_previous = w_tmp.copy()
         lambd /= reduction
         w_tmp = np.maximum(0, w - lambd * step)
-        obj = np.dot(s_sum, w_tmp) + self.diagonal_c * self._D_objective(X, c, d, w_tmp)
+        obj = np.dot(s_sum, w_tmp) + self.diagonal_c * \
+              self._D_objective(neg_pairs, w_tmp)
         inner_it += 1
 
       w[:] = w_previous
@@ -315,16 +315,16 @@ class BaseMMC(object):
     self.A_ = np.diag(w)
     return self
 
-  def _fD(self, X, c, d, A):
+  def _fD(self, neg_pairs, A):
     """The value of the dissimilarity constraint function.
 
     f = f(\sum_{ij \in D} distance(x_i, x_j))
     i.e. distance can be L1:  \sqrt{(x_i-x_j)A(x_i-x_j)'}
     """
-    diff = X[c] - X[d]
+    diff = neg_pairs[:, 0] - neg_pairs[:, 1]
     return np.log(np.sum(np.sqrt(np.sum(np.dot(diff, A) * diff, axis=1))) + 1e-6)
 
-  def _fD1(self, X, c, d, A):
+  def _fD1(self, neg_pairs, A):
     """The gradient of the dissimilarity constraint function w.r.t. A.
 
     For example, let distance by L1 norm:
@@ -336,8 +336,8 @@ class BaseMMC(object):
         df/dA = f'(\sum_{ij \in D} \sqrt{tr(d_ij'*d_ij*A)})
                 * 0.5*(\sum_{ij \in D} (1/sqrt{tr(d_ij'*d_ij*A)})*(d_ij'*d_ij))
     """
-    dim = X.shape[1]
-    diff = X[c] - X[d]
+    dim = neg_pairs.shape[2]
+    diff = neg_pairs[:, 0] - neg_pairs[:, 1]
     # outer products of all rows in `diff`
     M = np.einsum('ij,ik->ijk', diff, diff)
     # faster version of: dist = np.sqrt(np.sum(M * A[None,:,:], axis=(1,2)))
@@ -347,7 +347,7 @@ class BaseMMC(object):
     sum_dist = dist.sum()
     return sum_deri / (sum_dist + 1e-6)
 
-  def _fS1(self, X, a, b, A):
+  def _fS1(self, pos_pairs, A):
     """The gradient of the similarity constraint function w.r.t. A.
 
     f = \sum_{ij}(x_i-x_j)A(x_i-x_j)' = \sum_{ij}d_ij*A*d_ij'
@@ -356,8 +356,8 @@ class BaseMMC(object):
     Note that d_ij*A*d_ij' = tr(d_ij*A*d_ij') = tr(d_ij'*d_ij*A)
     so, d(d_ij*A*d_ij')/dA = d_ij'*d_ij
     """
-    dim = X.shape[1]
-    diff = X[a] - X[b]
+    dim = pos_pairs.shape[2]
+    diff = pos_pairs[:, 0] - pos_pairs[:, 1]
     return np.einsum('ij,ik->jk', diff, diff)  # sum of outer products of all rows in `diff`
 
   def _grad_projection(self, grad1, grad2):
@@ -366,15 +366,17 @@ class BaseMMC(object):
     gtemp /= np.linalg.norm(gtemp)
     return gtemp
 
-  def _D_objective(self, X, c, d, w):
-    return np.log(np.sum(np.sqrt(np.sum(((X[c] - X[d]) ** 2) * w[None,:], axis=1) + 1e-6)))
+  def _D_objective(self, neg_pairs, w):
+    return np.log(np.sum(np.sqrt(np.sum(((neg_pairs[:, 0] -
+                                          neg_pairs[:, 1]) ** 2) *
+                                        w[None,:], axis=1) + 1e-6)))
 
-  def _D_constraint(self, X, c, d, w):
+  def _D_constraint(self, neg_pairs, w):
     """Compute the value, 1st derivative, second derivative (Hessian) of
     a dissimilarity constraint function gF(sum_ij distance(d_ij A d_ij))
     where A is a diagonal matrix (in the form of a column vector 'w').
     """
-    diff = X[c] - X[d]
+    diff = neg_pairs[:, 0] - neg_pairs[:, 1]
     diff_sq = diff * diff
     dist = np.sqrt(diff_sq.dot(w))
     sum_deri1 = np.einsum('ij,i', diff_sq, 0.5 / np.maximum(dist, 1e-6))
@@ -445,8 +447,7 @@ class MMCPairsClassifier(MetricTuplesClassifier, ExplicitMetricMixin, BaseMMC):
 
 
   def fit(self, pairs, y_pairs):
-
-    return self.
+    return self._fit(pairs, y_pairs)
 
 class MMCTransformer(BaseMMC):
   """Mahalanobis Metric for Clustering (MMC)"""
@@ -506,7 +507,13 @@ class MMCTransformer(BaseMMC):
                                   random_state=random_state)
     pos_neg = c.positive_negative_pairs(num_constraints,
                                         random_state=random_state)
-    return MMC.fit(self, X, pos_neg)
+    a = np.array(pos_neg[0])
+    b = np.array(pos_neg[1])
+    c = np.array(pos_neg[2])
+    d = np.array(pos_neg[3])
+    constraints = np.vstack((np.column_stack((a, b)), np.column_stack((c, d))))
+    y = np.vstack([np.zeros((len(a), 1)), np.ones((len(c), 1))])
+    return self._fit(self, X[constraints], y)
 
   def transform(self, X):
     return self.embed(X)

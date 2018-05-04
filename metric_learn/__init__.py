@@ -10,4 +10,5 @@ from .nca import NCA
 from .lfda import LFDA
 from .rca import RCA, RCA_Supervised
 from .mlkr import MLKR
-from .mmc import MMC, MMC_Supervised
+# from .mmc import MMC, MMC_Supervised
+from .mmc import BaseMMC, MMCTransformer

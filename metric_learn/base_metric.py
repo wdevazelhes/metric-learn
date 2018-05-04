@@ -3,7 +3,7 @@ from abc import ABCMeta, abstractmethod
 import six
 import sklearn
 from numpy.linalg import inv, cholesky
-from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.base import BaseEstimator, TransformerMixin, clone
 from sklearn.utils.validation import check_array
 import numpy as np
 
@@ -20,7 +20,7 @@ class BaseMetricLearner(six.with_metaclass(ABCMeta)):
     self.preprocessors = preprocessors
     super(BaseMetricLearner, self).__init__()
 
-  @abstractmethod
+  # @abstractmethod
   def score_pairs(self, pairs, kind=0):
     """Compute similarities for each pair in ``pairs``.
 
@@ -83,7 +83,8 @@ class ExplicitMetricMixin(BaseMetricLearner):
 class BaseMetricClassifier(sklearn.base.BaseEstimator,
                            sklearn.base.ClassifierMixin,
                            sklearn.base.TransformerMixin,
-                           MetricLearnerMixin):
+                           BaseMetricLearner):
+                           # MetricLearnerMixin):
 
   def __init__(self, classifier='1-nn', preprocessor=None):
     """Build a classifier using a metric-learning algorithm.
@@ -146,7 +147,8 @@ class BaseMetricClassifier(sklearn.base.BaseEstimator,
 
 class BaseMetricTransformer:
 
-  def __init__(self, ):
+  def __init__(self):
+    pass
 
 class MetricTuplesClassifier(BaseMetricLearner):
 
