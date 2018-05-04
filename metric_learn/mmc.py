@@ -61,6 +61,7 @@ class MMC(MetricTuplesClassifier, MahalanobisMetricMixin):
     self.diagonal = diagonal
     self.diagonal_c = diagonal_c
     self.verbose = verbose
+    super(MMC, self).__init__()
 
 
   def fit(self, pairs, y):
@@ -80,37 +81,10 @@ class MMC(MetricTuplesClassifier, MahalanobisMetricMixin):
     else:
       return self._fit_full(pairs, y)
 
-  def _process_inputs(self, X, constraints):
-
-    self.X_ = X = check_array(X)
-
-    # check to make sure that no two constrained vectors are identical
-    a,b,c,d = constraints
-    no_ident = vector_norm(X[a] - X[b]) > 1e-9
-    a, b = a[no_ident], b[no_ident]
-    no_ident = vector_norm(X[c] - X[d]) > 1e-9
-    c, d = c[no_ident], d[no_ident]
-    if len(a) == 0:
-      raise ValueError('No non-trivial similarity constraints given for MMC.')
-    if len(c) == 0:
-      raise ValueError('No non-trivial dissimilarity constraints given for MMC.')
-
-    # init metric
-    if self.A0 is None:
-      self._metric = np.identity(X.shape[1])
-      if not self.diagonal:
-        # Don't know why division by 10... it's in the original code
-        # and seems to affect the overall scale of the learned metric.
-        self._metric /= 10.0
-    else:
-      self._metric = check_array(self.A0)
-
-    return a,b,c,d
-
   def _process_pairs(self, pairs, y):
     y = y.astype(bool).ravel() # todo: make cleaner implem
-    self.pairs_ = pairs = check_array(pairs, accept_sparse=False,
-                                      ensure_2d=False, allow_nd=True)
+    pairs = check_array(pairs, accept_sparse=False, ensure_2d=False,
+                        allow_nd=True)
 
     # check to make sure that no two constrained vectors are identical
     pos_pairs, neg_pairs = pairs[y], pairs[~y]

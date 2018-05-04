@@ -11,14 +11,17 @@ from __future__ import print_function, absolute_import, division
 import numpy as np
 import scipy.linalg
 from six.moves import xrange
+from sklearn.base import TransformerMixin, MetaEstimatorMixin
 from sklearn.utils.validation import check_array, check_X_y
 
-from .base_metric import BaseMetricLearner
+from .base_metric import MetricTuplesClassifier, MahalanobisMetricMixin
 from .constraints import Constraints
 
 
-class LSML(BaseMetricLearner):
-  def __init__(self, tol=1e-3, max_iter=1000, prior=None, verbose=False):
+class LSML(MetricTuplesClassifier, MahalanobisMetricMixin):
+  def __init__(self, *args, tol=1e-3, max_iter=1000, prior=None,
+               verbose=False,
+               **kwargs):
     """Initialize LSML.
 
     Parameters
@@ -34,12 +37,15 @@ class LSML(BaseMetricLearner):
     self.tol = tol
     self.max_iter = max_iter
     self.verbose = verbose
+    super(LSML, self).__init__()
 
-  def _prepare_inputs(self, X, constraints, weights):
-    self.X_ = X = check_array(X)
-    a,b,c,d = constraints
-    self.vab_ = X[a] - X[b]
-    self.vcd_ = X[c] - X[d]
+  def _prepare_quadruplets(self, quadruplets, weights):
+    pairs = check_array(quadruplets, accept_sparse=False,
+                                      ensure_2d=False, allow_nd=True)
+
+    # check to make sure that no two constrained vectors are identical
+    self.vab_ = quadruplets[:, 0, :] - quadruplets[:, 1, :]
+    self.vcd_ = quadruplets[:, 2, :] - quadruplets[:, 3, :]
     if self.vab_.shape != self.vcd_.shape:
       raise ValueError('Constraints must have same length')
     if weights is None:
@@ -48,16 +54,19 @@ class LSML(BaseMetricLearner):
       self.w_ = weights
     self.w_ /= self.w_.sum()  # weights must sum to 1
     if self.prior is None:
+      X = np.unique(pairs.reshape(-1, pairs.shape[2]), axis=0)
       self.prior_inv_ = np.atleast_2d(np.cov(X, rowvar=False))
       self.M_ = np.linalg.inv(self.prior_inv_)
     else:
-      self.M_ = self.prior
+      self.M_ = self.prior  # todo: deal with this covariance matrix: if one
+      #  gives only the pairs, one should be able to also give X or directly
+      #  give the covariance matrix.
       self.prior_inv_ = np.linalg.inv(self.prior)
 
   def metric(self):
     return self.M_
 
-  def fit(self, X, constraints, weights=None):
+  def fit(self, quadruplets, weights=None):
     """Learn the LSML model.
 
     Parameters
@@ -69,7 +78,7 @@ class LSML(BaseMetricLearner):
     weights : (m,) array of floats, optional
         scale factor for each constraint
     """
-    self._prepare_inputs(X, constraints, weights)
+    self._prepare_quadruplets(quadruplets, weights)
     step_sizes = np.logspace(-10, 0, 10)
     # Keep track of the best step size and the loss at that step.
     l_best = 0
@@ -131,7 +140,7 @@ class LSML(BaseMetricLearner):
     return dMetric
 
 
-class LSML_Supervised(LSML):
+class LSMLTransformer(TransformerMixin, MetaEstimatorMixin):
   def __init__(self, tol=1e-3, max_iter=1000, prior=None, num_labeled=np.inf,
                num_constraints=None, weights=None, verbose=False):
     """Initialize the learner.
@@ -151,8 +160,11 @@ class LSML_Supervised(LSML):
     verbose : bool, optional
         if True, prints information while learning
     """
-    LSML.__init__(self, tol=tol, max_iter=max_iter, prior=prior,
-                  verbose=verbose)
+    self.tol=tol
+    self.max_iter=max_iter
+    self.prior=prior
+    self.verbose=verbose
+
     self.num_labeled = num_labeled
     self.num_constraints = num_constraints
     self.weights = weights
@@ -171,6 +183,8 @@ class LSML_Supervised(LSML):
     random_state : numpy.random.RandomState, optional
         If provided, controls random number generation.
     """
+    self.lsml = LSML(tol=self.tol, max_iter=self.max_iter, prior=self.prior,
+                     verbose=self.verbose)
     X, y = check_X_y(X, y)
     num_constraints = self.num_constraints
     if num_constraints is None:
@@ -181,4 +195,7 @@ class LSML_Supervised(LSML):
                                   random_state=random_state)
     pairs = c.positive_negative_pairs(num_constraints, same_length=True,
                                       random_state=random_state)
-    return LSML.fit(self, X, pairs, weights=self.weights)
+    return self.lsml.fit(self, X, pairs, weights=self.weights)
+
+  def transform(self, X):
+    return self.lsml.embed(X)
