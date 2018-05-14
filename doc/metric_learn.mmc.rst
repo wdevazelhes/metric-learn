@@ -12,14 +12,14 @@ Example Code
 
 ::
 
-    from metric_learn import MMC_Supervised
+    from metric_learn import MMCTransformer
     from sklearn.datasets import load_iris
 
     iris_data = load_iris()
     X = iris_data['data']
     Y = iris_data['target']
 
-    mmc = MMC_Supervised(num_constraints=200)
+    mmc = MMCTransformer(num_constraints=200)
     mmc.fit(X, Y)
 
 References

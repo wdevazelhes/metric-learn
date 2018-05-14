@@ -8,7 +8,7 @@ from numpy.testing import assert_array_almost_equal
 
 from metric_learn import (
   LMNN, NCA, LFDA, Covariance, MLKR, MMC,
-  LSML_Supervised, ITML_Supervised, SDML_Supervised, RCA_Supervised, MMCTransformer)
+  LSMLTransformer, ITMLTransformer, SDMLTransformer, RCATransformer, MMCTransformer)
 # Import this specially for testing.
 from metric_learn.lmnn import python_LMNN
 
@@ -45,7 +45,7 @@ class TestCovariance(MetricTestCase):
 
 class TestLSML(MetricTestCase):
   def test_iris(self):
-    lsml = LSML_Supervised(num_constraints=200)
+    lsml = LSMLTransformer(num_constraints=200)
     lsml.fit(self.iris_points, self.iris_labels)
 
     csep = class_separation(lsml.transform(), self.iris_labels)
@@ -54,7 +54,7 @@ class TestLSML(MetricTestCase):
 
 class TestITML(MetricTestCase):
   def test_iris(self):
-    itml = ITML_Supervised(num_constraints=200)
+    itml = ITMLTransformer(num_constraints=200)
     itml.fit(self.iris_points, self.iris_labels)
 
     csep = class_separation(itml.transform(), self.iris_labels)
@@ -78,7 +78,7 @@ class TestSDML(MetricTestCase):
     # TODO: un-flake it!
     rs = np.random.RandomState(5555)
 
-    sdml = SDML_Supervised(num_constraints=1500)
+    sdml = SDMLTransformer(num_constraints=1500)
     sdml.fit(self.iris_points, self.iris_labels, random_state=rs)
     csep = class_separation(sdml.transform(), self.iris_labels)
     self.assertLess(csep, 0.25)
@@ -120,7 +120,7 @@ class TestLFDA(MetricTestCase):
 
 class TestRCA(MetricTestCase):
   def test_iris(self):
-    rca = RCA_Supervised(num_dims=2, num_chunks=30, chunk_size=2)
+    rca = RCATransformer(num_dims=2, num_chunks=30, chunk_size=2)
     rca.fit(self.iris_points, self.iris_labels)
     csep = class_separation(rca.transform(), self.iris_labels)
     self.assertLess(csep, 0.25)
@@ -129,13 +129,13 @@ class TestRCA(MetricTestCase):
     X = np.hstack((self.iris_points, np.eye(len(self.iris_points), M=1)))
 
     # Apply PCA with the number of components
-    rca = RCA_Supervised(num_dims=2, pca_comps=3, num_chunks=30, chunk_size=2)
+    rca = RCATransformer(num_dims=2, pca_comps=3, num_chunks=30, chunk_size=2)
     rca.fit(X, self.iris_labels)
     csep = class_separation(rca.transform(), self.iris_labels)
     self.assertLess(csep, 0.30)
 
     # Apply PCA with the minimum variance ratio
-    rca = RCA_Supervised(num_dims=2, pca_comps=0.95, num_chunks=30,
+    rca = RCATransformer(num_dims=2, pca_comps=0.95, num_chunks=30,
                          chunk_size=2)
     rca.fit(X, self.iris_labels)
     csep = class_separation(rca.transform(), self.iris_labels)

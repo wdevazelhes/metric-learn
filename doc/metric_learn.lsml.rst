@@ -12,14 +12,14 @@ Example Code
 
 ::
 
-    from metric_learn import LSML_Supervised
+    from metric_learn import LSMLTransformer
     from sklearn.datasets import load_iris
 
     iris_data = load_iris()
     X = iris_data['data']
     Y = iris_data['target']
 
-    lsml = LSML_Supervised(num_constraints=200)
+    lsml = LSMLTransformer(num_constraints=200)
     lsml.fit(X, Y)
 
 References

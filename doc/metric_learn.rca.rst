@@ -12,14 +12,14 @@ Example Code
 
 ::
 
-    from metric_learn import RCA_Supervised
+    from metric_learn import RCATransformer
     from sklearn.datasets import load_iris
 
     iris_data = load_iris()
     X = iris_data['data']
     Y = iris_data['target']
 
-    rca = RCA_Supervised(num_chunks=30, chunk_size=2)
+    rca = RCATransformer(num_chunks=30, chunk_size=2)
     rca.fit(X, Y)
 
 References

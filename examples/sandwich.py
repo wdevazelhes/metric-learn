@@ -7,7 +7,7 @@ from matplotlib import pyplot as plt
 from sklearn.metrics import pairwise_distances
 from sklearn.neighbors import NearestNeighbors
 
-from metric_learn import LMNN, ITML_Supervised, LSML_Supervised, SDML_Supervised
+from metric_learn import LMNN, ITMLTransformer, LSMLTransformer, SDMLTransformer
 
 
 def sandwich_demo():
@@ -23,9 +23,9 @@ def sandwich_demo():
 
   mls = [
       LMNN(),
-      ITML_Supervised(num_constraints=200),
-      SDML_Supervised(num_constraints=200),
-      LSML_Supervised(num_constraints=200),
+      ITMLTransformer(num_constraints=200),
+      SDMLTransformer(num_constraints=200),
+      LSMLTransformer(num_constraints=200),
   ]
 
   for ax_num, ml in enumerate(mls, start=3):

@@ -135,7 +135,7 @@ def _inv_sqrtm(x):
   return (vecs / np.sqrt(vals)).dot(vecs.T)
 
 
-class RCA_Supervised(RCA):
+class RCATransformer(RCA):
   def __init__(self, num_dims=None, pca_comps=None, num_chunks=100,
                chunk_size=2):
     """Initialize the learner.

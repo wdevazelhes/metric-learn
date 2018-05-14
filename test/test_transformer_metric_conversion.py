@@ -5,7 +5,7 @@ from numpy.testing import assert_array_almost_equal
 
 from metric_learn import (
     LMNN, NCA, LFDA, Covariance, MLKR,
-    LSML_Supervised, ITML_Supervised, SDML_Supervised, RCA_Supervised)
+    ITMLTransformer, LSMLTransformer, SDMLTransformer, RCATransformer)
 
 
 class TestTransformerMetricConversion(unittest.TestCase):
@@ -22,16 +22,16 @@ class TestTransformerMetricConversion(unittest.TestCase):
     L = cov.transformer()
     assert_array_almost_equal(L.T.dot(L), cov.metric())
 
-  def test_lsml_supervised(self):
+  def test_lsmltransformer(self):
     seed = np.random.RandomState(1234)
-    lsml = LSML_Supervised(num_constraints=200)
+    lsml = LSMLTransformer(num_constraints=200)
     lsml.fit(self.X, self.y, random_state=seed)
     L = lsml.transformer()
     assert_array_almost_equal(L.T.dot(L), lsml.metric())
 
-  def test_itml_supervised(self):
+  def test_itmltransformer(self):
     seed = np.random.RandomState(1234)
-    itml = ITML_Supervised(num_constraints=200)
+    itml = ITMLTransformer(num_constraints=200)
     itml.fit(self.X, self.y, random_state=seed)
     L = itml.transformer()
     assert_array_almost_equal(L.T.dot(L), itml.metric())
@@ -42,9 +42,9 @@ class TestTransformerMetricConversion(unittest.TestCase):
     L = lmnn.transformer()
     assert_array_almost_equal(L.T.dot(L), lmnn.metric())
 
-  def test_sdml_supervised(self):
+  def test_sdmltransformer(self):
     seed = np.random.RandomState(1234)
-    sdml = SDML_Supervised(num_constraints=1500)
+    sdml = SDMLTransformer(num_constraints=1500)
     sdml.fit(self.X, self.y, random_state=seed)
     L = sdml.transformer()
     assert_array_almost_equal(L.T.dot(L), sdml.metric())
@@ -62,9 +62,9 @@ class TestTransformerMetricConversion(unittest.TestCase):
     L = lfda.transformer()
     assert_array_almost_equal(L.T.dot(L), lfda.metric())
 
-  def test_rca_supervised(self):
+  def test_rcatransformer(self):
     seed = np.random.RandomState(1234)
-    rca = RCA_Supervised(num_dims=2, num_chunks=30, chunk_size=2)
+    rca = RCATransformer(num_dims=2, num_chunks=30, chunk_size=2)
     rca.fit(self.X, self.y, random_state=seed)
     L = rca.transformer()
     assert_array_almost_equal(L.T.dot(L), rca.metric())

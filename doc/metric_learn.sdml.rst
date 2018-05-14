@@ -12,14 +12,14 @@ Example Code
 
 ::
 
-    from metric_learn import SDML_Supervised
+    from metric_learn import SDMLTransformer
     from sklearn.datasets import load_iris
 
     iris_data = load_iris()
     X = iris_data['data']
     Y = iris_data['target']
 
-    sdml = SDML_Supervised(num_constraints=200)
+    sdml = SDMLTransformer(num_constraints=200)
     sdml.fit(X, Y)
 
 References

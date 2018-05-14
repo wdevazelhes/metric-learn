@@ -54,8 +54,8 @@ class SDML(MetricTuplesClassifier, MahalanobisMetricMixin):
       self.M_ = pinvh(np.cov(X, rowvar = False))
     else:
       self.M_ = np.identity(pairs.shape[2])
-    L = laplacian(W, normed=False)  # todo: to finish
-    return X.T.dot(L.dot(X))
+    diff = pairs[:, 0] - pairs[:, 1]
+    return (diff.T * y).dot(diff)
 
   def metric(self):
     return self.M_

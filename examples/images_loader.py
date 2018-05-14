@@ -4,7 +4,7 @@ import os
 
 from functools import reduce
 
-from metric_learn import LMNN, ITML, ITML_Supervised, LFDA
+from metric_learn import LMNN, ITML, ITMLTransformer, LFDA
 from sklearn.base import TransformerMixin, BaseEstimator
 from sklearn.datasets.lfw import _load_imgs
 from sklearn.datasets import get_data_home

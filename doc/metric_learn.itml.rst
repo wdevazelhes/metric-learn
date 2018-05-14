@@ -12,14 +12,14 @@ Example Code
 
 ::
 
-    from metric_learn import ITML_Supervised
+    from metric_learn import ITMLTransformer
     from sklearn.datasets import load_iris
 
     iris_data = load_iris()
     X = iris_data['data']
     Y = iris_data['target']
 
-    itml = ITML_Supervised(num_constraints=200)
+    itml = ITMLTransformer(num_constraints=200)
     itml.fit(X, Y)
 
 References

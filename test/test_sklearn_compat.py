@@ -4,21 +4,22 @@ from sklearn.utils.estimator_checks import check_estimator
 
 from metric_learn import (
     LMNN, NCA, LFDA, Covariance, MLKR,
-    LSML_Supervised, ITML_Supervised, SDML_Supervised, RCA_Supervised, MMCTransformer)
+    LSMLTransformer, ITMLTransformer, SDMLTransformer, RCATransformer,
+    MMCTransformer)
 
 
-# Wrap the _Supervised methods with a deterministic wrapper for testing.
+# Wrap the Transformer methods with a deterministic wrapper for testing.
 class deterministic_mixin(object):
   def fit(self, X, y):
     rs = np.random.RandomState(1234)
     return super(deterministic_mixin, self).fit(X, y, random_state=rs)
 
 
-class dLSML(deterministic_mixin, LSML_Supervised):
+class dLSML(deterministic_mixin, LSMLTransformer):
   pass
 
 
-class dITML(deterministic_mixin, ITML_Supervised):
+class dITML(deterministic_mixin, ITMLTransformer):
   pass
 
 
@@ -26,11 +27,11 @@ class dMMC(deterministic_mixin, MMCTransformer):
   pass
 
 
-class dSDML(deterministic_mixin, SDML_Supervised):
+class dSDML(deterministic_mixin, SDMLTransformer):
   pass
 
 
-class dRCA(deterministic_mixin, RCA_Supervised):
+class dRCA(deterministic_mixin, RCATransformer):
   pass
 
 
@@ -65,7 +66,7 @@ class TestSklearnCompat(unittest.TestCase):
 
   # This fails because the default num_chunks isn't data-dependent.
   # def test_rca(self):
-  #   check_estimator(RCA_Supervised)
+  #   check_estimator(RCATransformer)
 
 
 if __name__ == '__main__':

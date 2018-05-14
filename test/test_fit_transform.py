@@ -5,7 +5,7 @@ from numpy.testing import assert_array_almost_equal
 
 from metric_learn import (
     LMNN, NCA, LFDA, Covariance, MLKR,
-    LSML_Supervised, ITML_Supervised, SDML_Supervised, RCA_Supervised, MMCTransformer)
+    LSMLTransformer, ITMLTransformer, SDMLTransformer, RCATransformer, MMCTransformer)
 
 
 class TestFitTransform(unittest.TestCase):
@@ -26,26 +26,26 @@ class TestFitTransform(unittest.TestCase):
     # deterministic result
     assert_array_almost_equal(res_1, res_2)
 
-  def test_lsml_supervised(self):
+  def test_lsmlTransformer(self):
     seed = np.random.RandomState(1234)
-    lsml = LSML_Supervised(num_constraints=200)
+    lsml = LSMLTransformer(num_constraints=200)
     lsml.fit(self.X, self.y, random_state=seed)
     res_1 = lsml.transform()
 
     seed = np.random.RandomState(1234)
-    lsml = LSML_Supervised(num_constraints=200)
+    lsml = LSMLTransformer(num_constraints=200)
     res_2 = lsml.fit_transform(self.X, self.y, random_state=seed)
 
     assert_array_almost_equal(res_1, res_2)
 
-  def test_itml_supervised(self):
+  def test_itmlTransformer(self):
     seed = np.random.RandomState(1234)
-    itml = ITML_Supervised(num_constraints=200)
+    itml = ITMLTransformer(num_constraints=200)
     itml.fit(self.X, self.y, random_state=seed)
     res_1 = itml.transform()
 
     seed = np.random.RandomState(1234)
-    itml = ITML_Supervised(num_constraints=200)
+    itml = ITMLTransformer(num_constraints=200)
     res_2 = itml.fit_transform(self.X, self.y, random_state=seed)
 
     assert_array_almost_equal(res_1, res_2)
@@ -60,14 +60,14 @@ class TestFitTransform(unittest.TestCase):
 
     assert_array_almost_equal(res_1, res_2)
 
-  def test_sdml_supervised(self):
+  def test_sdmlTransformer(self):
     seed = np.random.RandomState(1234)
-    sdml = SDML_Supervised(num_constraints=1500)
+    sdml = SDMLTransformer(num_constraints=1500)
     sdml.fit(self.X, self.y, random_state=seed)
     res_1 = sdml.transform()
 
     seed = np.random.RandomState(1234)
-    sdml = SDML_Supervised(num_constraints=1500)
+    sdml = SDMLTransformer(num_constraints=1500)
     res_2 = sdml.fit_transform(self.X, self.y, random_state=seed)
 
     assert_array_almost_equal(res_1, res_2)
@@ -96,14 +96,14 @@ class TestFitTransform(unittest.TestCase):
         res_2 *= -1
     assert_array_almost_equal(res_1, res_2)
 
-  def test_rca_supervised(self):
+  def test_rcaTransformer(self):
     seed = np.random.RandomState(1234)
-    rca = RCA_Supervised(num_dims=2, num_chunks=30, chunk_size=2)
+    rca = RCATransformer(num_dims=2, num_chunks=30, chunk_size=2)
     rca.fit(self.X, self.y, random_state=seed)
     res_1 = rca.transform()
 
     seed = np.random.RandomState(1234)
-    rca = RCA_Supervised(num_dims=2, num_chunks=30, chunk_size=2)
+    rca = RCATransformer(num_dims=2, num_chunks=30, chunk_size=2)
     res_2 = rca.fit_transform(self.X, self.y, random_state=seed)
 
     assert_array_almost_equal(res_1, res_2)
@@ -118,7 +118,7 @@ class TestFitTransform(unittest.TestCase):
 
     assert_array_almost_equal(res_1, res_2)
 
-  def test_mmc_supervised(self):
+  def test_mmcTransformer(self):
     seed = np.random.RandomState(1234)
     mmc = MMCTransformer(num_constraints=200)
     mmc.fit(self.X, self.y, random_state=seed)

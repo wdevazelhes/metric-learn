@@ -27,8 +27,8 @@ class TestStringRepr(unittest.TestCase):
 ITML(A0=None, convergence_threshold=0.001, gamma=1.0, max_iter=1000,
    verbose=False)
 """.strip('\n'))
-    self.assertEqual(str(metric_learn.ITML_Supervised()), """
-ITML_Supervised(A0=None, bounds=None, convergence_threshold=0.001, gamma=1.0,
+    self.assertEqual(str(metric_learn.ITMLTransformer()), """
+ITMLTransformer(A0=None, bounds=None, convergence_threshold=0.001, gamma=1.0,
         max_iter=1000, num_constraints=None, num_labeled=inf,
         verbose=False)
 """.strip('\n'))
@@ -37,8 +37,8 @@ ITML_Supervised(A0=None, bounds=None, convergence_threshold=0.001, gamma=1.0,
     self.assertEqual(
         str(metric_learn.LSML()),
         "LSML(max_iter=1000, prior=None, tol=0.001, verbose=False)")
-    self.assertEqual(str(metric_learn.LSML_Supervised()), """
-LSML_Supervised(max_iter=1000, num_constraints=None, num_labeled=inf,
+    self.assertEqual(str(metric_learn.LSMLTransformer()), """
+LSMLTransformer(max_iter=1000, num_constraints=None, num_labeled=inf,
         prior=None, tol=0.001, verbose=False, weights=None)
 """.strip('\n'))
 
@@ -46,16 +46,16 @@ LSML_Supervised(max_iter=1000, num_constraints=None, num_labeled=inf,
     self.assertEqual(str(metric_learn.SDML()),
                      "SDML(balance_param=0.5, sparsity_param=0.01, "
                      "use_cov=True, verbose=False)")
-    self.assertEqual(str(metric_learn.SDML_Supervised()), """
-SDML_Supervised(balance_param=0.5, num_constraints=None, num_labeled=inf,
+    self.assertEqual(str(metric_learn.SDMLTransformer()), """
+SDMLTransformer(balance_param=0.5, num_constraints=None, num_labeled=inf,
         sparsity_param=0.01, use_cov=True, verbose=False)
 """.strip('\n'))
 
   def test_rca(self):
     self.assertEqual(str(metric_learn.RCA()),
                      "RCA(num_dims=None, pca_comps=None)")
-    self.assertEqual(str(metric_learn.RCA_Supervised()),
-                     "RCA_Supervised(chunk_size=2, num_chunks=100, "
+    self.assertEqual(str(metric_learn.RCATransformer()),
+                     "RCATransformer(chunk_size=2, num_chunks=100, "
                      "num_dims=None, pca_comps=None)")
 
   def test_mlkr(self):
@@ -68,8 +68,8 @@ SDML_Supervised(balance_param=0.5, num_constraints=None, num_labeled=inf,
 MMC(A0=None, convergence_threshold=0.001, diagonal=False, diagonal_c=1.0,
   max_iter=100, max_proj=10000, verbose=False)
 """.strip('\n'))
-    self.assertEqual(str(metric_learn.MMC_Supervised()), """
-MMC_Supervised(A0=None, convergence_threshold=1e-06, diagonal=False,
+    self.assertEqual(str(metric_learn.MMCTransformer()), """
+MMCTransformer(A0=None, convergence_threshold=1e-06, diagonal=False,
         diagonal_c=1.0, max_iter=100, max_proj=10000, num_constraints=None,
         num_labeled=inf, verbose=False)
 """.strip('\n'))
