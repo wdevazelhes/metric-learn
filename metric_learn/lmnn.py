@@ -294,14 +294,13 @@ class LMNN(MahalanobisMixin, TransformerMixin):
 
   def _find_impostors(self, furthest_neighbors, X, label_inds):
     Lx = self.transform(X)
-    margin_radii = 1 + _inplace_paired_L2(Lx[furthest_neighbors], Lx)
     impostors = []
     for label in self.labels_[:-1]:
       in_inds, = np.nonzero(label_inds == label)
       out_inds, = np.nonzero(label_inds > label)
       dist = euclidean_distances(Lx[out_inds], Lx[in_inds], squared=True)
-      i1,j1 = np.nonzero(dist < margin_radii[out_inds][:,None])
-      i2,j2 = np.nonzero(dist < margin_radii[in_inds])
+      i1,j1 = np.nonzero(dist < np.inf)
+      i2,j2 = np.nonzero(dist < np.inf)
       i = np.hstack((i1,i2))
       j = np.hstack((j1,j2))
       if i.size > 0:
